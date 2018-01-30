@@ -28,7 +28,7 @@
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ END OF DEFINES ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-struct map_title *loc_init(FILE *cur_map_f);
+struct map_title *loc_init(FILE *cur_map_f, int side);
 struct map_title * location_changer(int where_m, struct map_title *cur_map);
 
 int player_move(int command);
@@ -37,10 +37,10 @@ void map_upload(FILE *cur_map_f);
 void printer(struct map_title *cur_map);
 void hero_create(void);
 
-const int V_map_x = 2;
-const int V_map_y = 6;
-const int V_map_size_x = 120;
-const int V_map_size_y = 40;
+const int Map_x = 2;
+const int Map_y = 6;
+const int Map_size_x = 120;
+const int Map_size_y = 40;
 
 struct special
 {
@@ -71,7 +71,7 @@ struct map_title
 	char *link_right;		// 2
 	char *link_down; 		// 3
 	char *link_left;			// 4
-	char map[V_map_size_y][V_map_size_x];
+	char map[Map_size_y][Map_size_x];
 };
 
 struct entity Hero;
@@ -231,21 +231,21 @@ void hero_create(void)
 //!--------------------------------------------------------------------------
 int player_move(int command)
 {
-	if( ((command == 'w')||(command == KEY_UP)) && Hero.cur_y > V_map_y)
+	if( ((command == 'w')||(command == KEY_UP)) && Hero.cur_y > Map_y)
 		mvprintw(--Hero.cur_y, Hero.cur_x, "@");
-	else if( ((command == 'w')||(command == KEY_UP)) && Hero.cur_y == V_map_y)
+	else if( ((command == 'w')||(command == KEY_UP)) && Hero.cur_y == Map_y)
 		return 1; // переход на локацию выше
-	else if( ((command == 's')||(command == KEY_DOWN)) && Hero.cur_y < V_map_y + V_map_size_y - 1)
+	else if( ((command == 's')||(command == KEY_DOWN)) && Hero.cur_y < Map_y + Map_size_y - 1)
 		mvprintw(++Hero.cur_y, Hero.cur_x, "@");
-	else if( ((command == 's')||(command == KEY_DOWN)) && Hero.cur_y == V_map_y + V_map_size_y - 1)
+	else if( ((command == 's')||(command == KEY_DOWN)) && Hero.cur_y == Map_y + Map_size_y - 1)
 		return 3; // переход на локацию ниже
-	else if( ((command == 'd')||(command == KEY_RIGHT)) && Hero.cur_x < V_map_x + V_map_size_x - 1)
+	else if( ((command == 'd')||(command == KEY_RIGHT)) && Hero.cur_x < Map_x + Map_size_x - 1)
 		mvprintw(Hero.cur_y, ++Hero.cur_x, "@");
-	else if( ((command == 'd')||(command == KEY_RIGHT)) && Hero.cur_x == V_map_x + V_map_size_x - 1)
+	else if( ((command == 'd')||(command == KEY_RIGHT)) && Hero.cur_x == Map_x + Map_size_x - 1)
 		return 2; // переход на локацию правее
-	else if( ((command == 'a')||(command == KEY_LEFT)) && Hero.cur_x > V_map_x)
+	else if( ((command == 'a')||(command == KEY_LEFT)) && Hero.cur_x > Map_x)
 		mvprintw(Hero.cur_y, --Hero.cur_x, "@");
-	else if( ((command == 'a')||(command == KEY_LEFT)) && Hero.cur_x == V_map_x)
+	else if( ((command == 'a')||(command == KEY_LEFT)) && Hero.cur_x == Map_x)
 		return 4; // переход на локацию левее
 	else
 		mvprintw(Hero.cur_y, Hero.cur_x, "@"); 		// Далее писать новые ифы, так как иначе при отсутствии движения персонаж пропадает с карты
@@ -262,9 +262,9 @@ int player_move(int command)
 void printer(struct map_title *cur_map)
 {
 	int cur_x = 0;
-	int max_x = V_map_size_x;
+	int max_x = Map_size_x;
 	int cur_line = 0;
-	int max_line = V_map_size_y;
+	int max_line = Map_size_y;
 
 	while(cur_line != max_line)
 	{
@@ -272,7 +272,7 @@ void printer(struct map_title *cur_map)
 
 		while(cur_x != max_x)
 		{
-			mvprintw(cur_line + V_map_y, cur_x + V_map_x, "%c", cur_map->map[cur_line][cur_x]);
+			mvprintw(cur_line + Map_y, cur_x + Map_x, "%c", cur_map->map[cur_line][cur_x]);
 			cur_x++;
 		}
 		
@@ -294,7 +294,7 @@ void printer(struct map_title *cur_map)
 //!----------------------------------------------------------------------------------------
 void map_upload(FILE *cur_map_f)
 {
-	struct map_title *cur_map = loc_init(cur_map_f);
+	struct map_title *cur_map = loc_init(cur_map_f, 0);
 	int where_m = 0;
 	int cur_sym = 0;
 
@@ -305,7 +305,6 @@ void map_upload(FILE *cur_map_f)
 			cur_sym = getch();
 			printer(cur_map);
 			where_m = player_move(cur_sym);
-			mvprintw(1, 1, "%s!\n%s!\n%s!\n%s!", cur_map->link_up, cur_map->link_right, cur_map->link_down, cur_map->link_left); //TEST
     		refresh();                   
 		}
 
@@ -320,14 +319,15 @@ void map_upload(FILE *cur_map_f)
 //! Данная функция инициализирует текущую локацию
 //!
 //!---------------------------------------------------------------------
-struct map_title *loc_init(FILE *cur_map_f)
+struct map_title *loc_init(FILE *cur_map_f, int side)
 {
 	struct map_title *cur_map = (struct map_title*) calloc(1, sizeof(struct map_title));
 
 	int cur_line = 0;
-	int max_line = V_map_size_y;
+	int max_line = Map_size_y;
 	int cur_x = 0;
-	int max_x = V_map_size_x;
+	int spawn = 0;
+	int max_x = Map_size_x;
 
 	cur_map->link_up = (char*) calloc(100, sizeof(char));
 	cur_map->link_right = (char*) calloc(100, sizeof(char));
@@ -349,12 +349,26 @@ struct map_title *loc_init(FILE *cur_map_f)
 			
 			if(cur_map->map[cur_line][cur_x] == 'S')
 			{
-				Hero.cur_x = cur_x + V_map_x;
-				Hero.cur_y = cur_line + V_map_y;
+				Hero.cur_x = cur_x + Map_x;
+				Hero.cur_y = cur_line + Map_y;
+				spawn = 1;
 			}
 
 			cur_x++;
 		}
+
+		if(spawn == 0 && side != 0)
+		{
+			if(side == 1)
+				Hero.cur_y = Map_y + Map_size_y - 1;
+			else if(side == 2)
+				Hero.cur_x = Map_x;
+			else if(side == 3)
+				Hero.cur_y = Map_y;
+			else if(side == 4)
+				Hero.cur_x = Map_x + Map_size_x - 1;
+		}
+		
 
 		fgetc(cur_map_f);
 		cur_line++;
@@ -374,21 +388,27 @@ struct map_title *loc_init(FILE *cur_map_f)
 
 struct map_title *location_changer(int where_m, struct map_title *cur_map)
 {
+	struct map_title *old_map = cur_map;
+
 	if(where_m == 1 && strcmp(cur_map->link_up, "null") != 0)
 	{
-		cur_map = loc_init(fopen(cur_map->link_up,"r"));
+		cur_map = loc_init(fopen(cur_map->link_up,"r"), where_m);
+		free(old_map);
 	}
 	if(where_m == 2 && strcmp(cur_map->link_right, "null") != 0)
 	{
-		cur_map = loc_init(fopen(cur_map->link_right,"r"));
+		cur_map = loc_init(fopen(cur_map->link_right,"r"), where_m);
+		free(old_map);
 	}
 	if(where_m == 3 && strcmp(cur_map->link_down, "null") != 0)
 	{
-		cur_map = loc_init(fopen(cur_map->link_down,"r"));
+		cur_map = loc_init(fopen(cur_map->link_down,"r"), where_m);
+		free(old_map);
 	}
 	if(where_m == 4 && strcmp(cur_map->link_left, "null") != 0)
 	{
-		cur_map = loc_init(fopen(cur_map->link_left,"r"));
+		cur_map = loc_init(fopen(cur_map->link_left,"r"), where_m);
+		free(old_map);
 	}
 
 	return cur_map;
