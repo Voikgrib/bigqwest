@@ -32,5 +32,7 @@ int main()
 		x++;
 	}
 
+	fclose(map);
+
 	return 0;
 }

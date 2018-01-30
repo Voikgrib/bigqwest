@@ -2,6 +2,7 @@
 #include<stdio.h>
 #include<ncurses.h>
 #include<stdlib.h>
+#include<string.h>
 #include<iostream>
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ START OF DEFINES ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -26,10 +27,14 @@
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ END OF DEFINES ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-void map_upload(FILE *cur_map_f);
-void player_move(int command);
 
-void printer(struct map_title cur_map);
+struct map_title *loc_init(FILE *cur_map_f);
+struct map_title * location_changer(int where_m, struct map_title *cur_map);
+
+int player_move(int command);
+
+void map_upload(FILE *cur_map_f);
+void printer(struct map_title *cur_map);
 void hero_create(void);
 
 const int V_map_x = 2;
@@ -62,10 +67,10 @@ struct entity
 
 struct map_title
 {
-	char link_up;			// 1
-	char link_right;		// 2
-	char link_down; 		// 3
-	char link_left;			// 4
+	char *link_up;			// 1
+	char *link_right;		// 2
+	char *link_down; 		// 3
+	char *link_left;			// 4
 	char map[V_map_size_y][V_map_size_x];
 };
 
@@ -77,7 +82,7 @@ struct entity Hero;
 //!
 //! смещение на два символа и шесть строк у карты
 //!
-//! v 0.0.1
+//! v 0.0.3
 //!
 //!----------------------------------------------------------------------
 int main()
@@ -98,19 +103,8 @@ int main()
 
 	printw("For exit press 'q' \n");  
 
-	//Hero.cur_x = 7;							//	For ex
-	//Hero.cur_y = 7;							//	For ex 
-	//mvprintw(Hero.cur_y, Hero.cur_x, "@");    //  For ex
-	
 	map_upload(fopen("maps/map1_1.txt", "r"));
 
-	/*while(cur_sym != 'q')
-	{
-    	refresh();                   
-    	cur_sym = getch();
-		player_move(cur_sym);
-	}*/                  
-  
     endwin();                    
     return 0;
 }
@@ -235,29 +229,28 @@ void hero_create(void)
 //! Отвечает за перемещение персонажа
 //!
 //!--------------------------------------------------------------------------
-void player_move(int command)
+int player_move(int command)
 {
-	if( ((command == 'w')||(command == KEY_UP)) && Hero.cur_y > 4)
-	{
-		//mvprintw(Hero.cur_y, Hero.cur_x, " ");
+	if( ((command == 'w')||(command == KEY_UP)) && Hero.cur_y > V_map_y)
 		mvprintw(--Hero.cur_y, Hero.cur_x, "@");
-	}
-	else if( ((command == 's')||(command == KEY_DOWN)) && Hero.cur_y < (LINES-2))
-	{
-		//mvprintw(Hero.cur_y, Hero.cur_x, " ");
+	else if( ((command == 'w')||(command == KEY_UP)) && Hero.cur_y == V_map_y)
+		return 1; // переход на локацию выше
+	else if( ((command == 's')||(command == KEY_DOWN)) && Hero.cur_y < V_map_y + V_map_size_y - 1)
 		mvprintw(++Hero.cur_y, Hero.cur_x, "@");
-	}
-	else if( ((command == 'd')||(command == KEY_RIGHT)) && Hero.cur_x < (COLS-2))
-	{
-		//mvprintw(Hero.cur_y, Hero.cur_x, " ");
+	else if( ((command == 's')||(command == KEY_DOWN)) && Hero.cur_y == V_map_y + V_map_size_y - 1)
+		return 3; // переход на локацию ниже
+	else if( ((command == 'd')||(command == KEY_RIGHT)) && Hero.cur_x < V_map_x + V_map_size_x - 1)
 		mvprintw(Hero.cur_y, ++Hero.cur_x, "@");
-	}
-	else if( ((command == 'a')||(command == KEY_LEFT)) && Hero.cur_x > 2)
-	{
-		//mvprintw(Hero.cur_y, Hero.cur_x, " ");
+	else if( ((command == 'd')||(command == KEY_RIGHT)) && Hero.cur_x == V_map_x + V_map_size_x - 1)
+		return 2; // переход на локацию правее
+	else if( ((command == 'a')||(command == KEY_LEFT)) && Hero.cur_x > V_map_x)
 		mvprintw(Hero.cur_y, --Hero.cur_x, "@");
-	}
+	else if( ((command == 'a')||(command == KEY_LEFT)) && Hero.cur_x == V_map_x)
+		return 4; // переход на локацию левее
+	else
+		mvprintw(Hero.cur_y, Hero.cur_x, "@"); 		// Далее писать новые ифы, так как иначе при отсутствии движения персонаж пропадает с карты
 
+	return 0;
 }
 
 
@@ -266,7 +259,7 @@ void player_move(int command)
 //! Данная функция за обновление карты
 //!
 //!------------------------------------------------------------------------------------------
-void printer(struct map_title cur_map)
+void printer(struct map_title *cur_map)
 {
 	int cur_x = 0;
 	int max_x = V_map_size_x;
@@ -279,7 +272,7 @@ void printer(struct map_title cur_map)
 
 		while(cur_x != max_x)
 		{
-			mvprintw(cur_line + V_map_y, cur_x + V_map_x, "%c", cur_map.map[cur_line][cur_x]);
+			mvprintw(cur_line + V_map_y, cur_x + V_map_x, "%c", cur_map->map[cur_line][cur_x]);
 			cur_x++;
 		}
 		
@@ -290,7 +283,7 @@ void printer(struct map_title cur_map)
 
 //!----------------------------------------------------------------------------------------
 //! 
-//! Данная кманда отвечает за перемещение между тайтлами карты и за их подгрузку
+//! Данная кманда отвечает за погрузку первого тайла карты, а так же за движение персонажа
 //!
 //! Порядок описания ссылок
 //! вверх - вправо - вниз - влево
@@ -301,18 +294,50 @@ void printer(struct map_title cur_map)
 //!----------------------------------------------------------------------------------------
 void map_upload(FILE *cur_map_f)
 {
-	struct map_title cur_map;
+	struct map_title *cur_map = loc_init(cur_map_f);
+	int where_m = 0;
 	int cur_sym = 0;
+
+	while(cur_sym != 'q')
+	{
+		while(cur_sym != 'q' && where_m == 0)
+		{
+			cur_sym = getch();
+			printer(cur_map);
+			where_m = player_move(cur_sym);
+			mvprintw(1, 1, "%s!\n%s!\n%s!\n%s!", cur_map->link_up, cur_map->link_right, cur_map->link_down, cur_map->link_left); //TEST
+    		refresh();                   
+		}
+
+		cur_map = location_changer(where_m, cur_map);
+
+		where_m = 0;
+	}
+}
+
+//!---------------------------------------------------------------------
+//!
+//! Данная функция инициализирует текущую локацию
+//!
+//!---------------------------------------------------------------------
+struct map_title *loc_init(FILE *cur_map_f)
+{
+	struct map_title *cur_map = (struct map_title*) calloc(1, sizeof(struct map_title));
 
 	int cur_line = 0;
 	int max_line = V_map_size_y;
 	int cur_x = 0;
 	int max_x = V_map_size_x;
 
-	fscanf(cur_map_f, "%[^\n]", &cur_map.link_up);		fgetc(cur_map_f);
-	fscanf(cur_map_f, "%[^\n]", &cur_map.link_right);	fgetc(cur_map_f); 
-	fscanf(cur_map_f, "%[^\n]", &cur_map.link_down);	fgetc(cur_map_f);
-	fscanf(cur_map_f, "%[^\n]", &cur_map.link_left);	fgetc(cur_map_f);
+	cur_map->link_up = (char*) calloc(100, sizeof(char));
+	cur_map->link_right = (char*) calloc(100, sizeof(char));
+	cur_map->link_down = (char*) calloc(100, sizeof(char));
+	cur_map->link_left  = (char*) calloc(100, sizeof(char));
+
+	fscanf(cur_map_f, "%[^\n]", cur_map->link_up);		fgetc(cur_map_f);
+	fscanf(cur_map_f, "%[^\n]", cur_map->link_right);	fgetc(cur_map_f); 
+	fscanf(cur_map_f, "%[^\n]", cur_map->link_down);	fgetc(cur_map_f);
+	fscanf(cur_map_f, "%[^\n]", cur_map->link_left);	fgetc(cur_map_f);
 
 	while(cur_line != max_line)
 	{
@@ -320,9 +345,9 @@ void map_upload(FILE *cur_map_f)
 
 		while(cur_x != max_x)
 		{
-			cur_map.map[cur_line][cur_x] = fgetc(cur_map_f);
+			cur_map->map[cur_line][cur_x] = fgetc(cur_map_f);
 			
-			if(cur_map.map[cur_line][cur_x] == 'S')
+			if(cur_map->map[cur_line][cur_x] == 'S')
 			{
 				Hero.cur_x = cur_x + V_map_x;
 				Hero.cur_y = cur_line + V_map_y;
@@ -335,17 +360,39 @@ void map_upload(FILE *cur_map_f)
 		cur_line++;
 	}
 
+	fclose(cur_map_f);
 
-	while(cur_sym != 'q')
-	{
-		cur_sym = getch();
-		printer(cur_map);
-		player_move(cur_sym);
-    	refresh();                   
-	}  
+	return cur_map;
 }
 
 
+//!------------------------------------------------------------------------------
+//!
+//! Данная команда отвечает за перемещение персонажа между локациями
+//!
+//!------------------------------------------------------------------------------
+
+struct map_title *location_changer(int where_m, struct map_title *cur_map)
+{
+	if(where_m == 1 && strcmp(cur_map->link_up, "null") != 0)
+	{
+		cur_map = loc_init(fopen(cur_map->link_up,"r"));
+	}
+	if(where_m == 2 && strcmp(cur_map->link_right, "null") != 0)
+	{
+		cur_map = loc_init(fopen(cur_map->link_right,"r"));
+	}
+	if(where_m == 3 && strcmp(cur_map->link_down, "null") != 0)
+	{
+		cur_map = loc_init(fopen(cur_map->link_down,"r"));
+	}
+	if(where_m == 4 && strcmp(cur_map->link_left, "null") != 0)
+	{
+		cur_map = loc_init(fopen(cur_map->link_left,"r"));
+	}
+
+	return cur_map;
+}
 
 
 
