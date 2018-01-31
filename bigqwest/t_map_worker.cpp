@@ -4,8 +4,14 @@
 #include<stdlib.h>
 #include<string.h>
 #include<iostream>
+#include<panel.h>
+
+//			/home/artyom/bigquest/tyomdimich/inventory/
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ START OF DEFINES ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+//#define ADRES_INV "inventory/inv_"
+
 
 #define V_CREATE_CHAR_UP(name)														\
 			if(cur_pos == name && Hero.cur_special.name < 10)						\
@@ -45,11 +51,13 @@
 struct map_title *loc_init(FILE *cur_map_f, int side);
 struct map_title * location_changer(int where_m, struct map_title *cur_map);
 
-int player_move(int command, struct map_title *cur_map);
+int player_command(int command, struct map_title *cur_map);
 int is_wall(int direction, struct map_title *cur_map);
 
 void map_upload(FILE *cur_map_f);
 void printer(struct map_title *cur_map);
+void open_inventory(void);
+
 void hero_create(void);
 
 const int Map_x = 2;
@@ -83,6 +91,7 @@ struct entity
 	int max_mp;
 	struct special cur_special;
 	int chsw;
+	int* inventory;
 };
 
 struct map_title
@@ -116,12 +125,13 @@ int main()
 	curs_set(0);
 	noecho();
 	
-
-	
 	printw("%d, %d\n", COLS, LINES);
 
-
 	hero_create();
+
+	Hero.inventory[0] = 1001;               //тестовое наполнение инвентаря
+	Hero.inventory[1] = 2002;
+	Hero.inventory[2] = 3002;
 
 	printw("For exit press 'q' \n");  
 
@@ -166,6 +176,7 @@ void hero_create(void)
 	getmaxyx(stdscr, height_stdscr, width_stdscr);
 	
 	WINDOW* win = newwin(height_stdscr, width_stdscr, 0, 0);
+	PANEL* pan = new_panel(win);
 	keypad(win, TRUE);
 	
 	box(win, 0, 0);
@@ -239,7 +250,104 @@ void hero_create(void)
 			is_end = 1;
 	}
 	
+	del_panel(pan);
+	delwin(win);
 	clear();
+
+	Hero.inventory = (int*) calloc(60, sizeof(int) );
+}
+
+
+//!-----------------------------------------------------------------------
+//!
+//!  Данная функция открывает инвентарь :I
+//!
+//!-----------------------------------------------------------------------
+void open_inventory (void) 
+{	
+	int i, j;
+	int cur_sym = 0;
+	
+	char* item_name = (char*)malloc(64*sizeof(char));
+	char* adres_inv_j = (char*)malloc(192*sizeof(char));
+	//инициализация окошек для инвентаря
+	
+	const int titley = 13;
+	const int titlex = 12;
+	const int listy = 16;
+	const int listx = 12;
+	const int descry = 13;
+	const int descrx = 57;
+	
+	const int titleh = 3;
+	const int titlew = 45;
+	const int listh = 30;
+	const int listw = 45;
+	const int descrh = 33;
+	const int descrw = 50;
+	
+	WINDOW* win_title = newwin(titleh, titlew, titley, titlex);
+	WINDOW* win_list2 = newwin(listh, listw, listy, listx);
+	WINDOW* win_list = newwin(listh, listw, listy, listx);
+	WINDOW* win_descr = newwin(descrh, descrw, descry, descrx);
+	
+	PANEL* pan_title = new_panel(win_title);
+	PANEL* pan_list2 = new_panel(win_list2);
+	PANEL* pan_list = new_panel(win_list);
+	PANEL* pan_descr = new_panel(win_descr);
+	
+	box(win_title, 0, 0);
+	box(win_list, 0, 0);
+	box(win_descr, 0, 0);
+	
+	mvwprintw(win_title, titleh/2, 2*titlew/5, "INVENTORY");
+	
+	wrefresh(win_title);
+	wrefresh(win_list);
+	wrefresh(win_descr);
+	
+	//прорисовывание содержимого инвентаря
+	
+	for (i = 0; Hero.inventory[i] != 0; i++)
+	{	
+		j = Hero.inventory[i]/100;
+		//sprintf(adres_inv_j, "%s%d%s", ADRES_INV, j, ".txt");
+		//FILE* inv_fp = fopen(adres_inv_j, "r"); 
+		
+		//тут надо как-то обрабатывать данные из файлика, чтобы потом выписывать их в окошко инвентаря
+		
+		if (i < 30)
+		{
+			mvwprintw(win_list, 1 + i, 5, "%d", Hero.inventory[i]); 	
+			wrefresh(win_list);
+		}
+		else
+		{
+			mvwprintw(win_list2, 1 + i%30, 5, "%d", Hero.inventory[i]); 
+			wrefresh(win_list2);	
+		}
+		
+		//fclose(inv_fp);
+	}
+	
+	refresh();
+	
+	//обработка действий пользователя
+	
+	while(cur_sym != 'q')
+	{                
+    	cur_sym = getch();
+	} 
+	
+	//завершение работы инвентаря
+	
+	del_panel(pan_title);
+	del_panel(pan_list);
+	del_panel(pan_descr);
+	
+	delwin(win_title);
+	delwin(win_list);
+	delwin(win_descr);
 }
 
 
@@ -249,28 +357,35 @@ void hero_create(void)
 //! Отвечает за перемещение персонажа
 //!
 //!--------------------------------------------------------------------------
-int player_move(int command, struct map_title *cur_map)
+int player_command(int command, struct map_title *cur_map)
 {
+	int ret = 0;
+
 	if( ((command == 'w')||(command == KEY_UP)) && Hero.cur_y > Map_y && is_wall(Up, cur_map) == 0)
 		mvprintw(--Hero.cur_y, Hero.cur_x, "@");
 	else if( ((command == 'w')||(command == KEY_UP)) && Hero.cur_y == Map_y && is_wall(Up, cur_map) == 0)
-		return 1; // переход на локацию выше
+		ret = 1; // переход на локацию выше
 	else if( ((command == 's')||(command == KEY_DOWN)) && Hero.cur_y < Map_y + Map_size_y - 1 && is_wall(Down, cur_map) == 0)
 		mvprintw(++Hero.cur_y, Hero.cur_x, "@");
 	else if( ((command == 's')||(command == KEY_DOWN)) && Hero.cur_y == Map_y + Map_size_y - 1 && is_wall(Down, cur_map) == 0)
-		return 3; // переход на локацию ниже
+		ret = 3; // переход на локацию ниже
 	else if( ((command == 'd')||(command == KEY_RIGHT)) && Hero.cur_x < Map_x + Map_size_x - 1 && is_wall(Right, cur_map) == 0)
 		mvprintw(Hero.cur_y, ++Hero.cur_x, "@");
 	else if( ((command == 'd')||(command == KEY_RIGHT)) && Hero.cur_x == Map_x + Map_size_x - 1 && is_wall(Right, cur_map) == 0)
-		return 2; // переход на локацию правее
+		ret = 2; // переход на локацию правее
 	else if( ((command == 'a')||(command == KEY_LEFT)) && Hero.cur_x > Map_x && is_wall(Left, cur_map) == 0)
 		mvprintw(Hero.cur_y, --Hero.cur_x, "@");
 	else if( ((command == 'a')||(command == KEY_LEFT)) && Hero.cur_x == Map_x && is_wall(Left, cur_map) == 0)
-		return 4; // переход на локацию левее
+		ret = 4; // переход на локацию левее
+	else if( command == 'i' )
+	{
+		open_inventory();
+		refresh();
+	}
 	else
 		mvprintw(Hero.cur_y, Hero.cur_x, "@"); 		// Далее писать новые ифы, так как иначе при отсутствии движения персонаж пропадает с карты
 
-	return 0;
+	return ret;
 }
 
 
@@ -344,7 +459,7 @@ void map_upload(FILE *cur_map_f)
 		{
 			cur_sym = getch();
 			printer(cur_map);
-			where_m = player_move(cur_sym, cur_map);
+			where_m = player_command(cur_sym, cur_map);
     		refresh();                   
 		}
 
