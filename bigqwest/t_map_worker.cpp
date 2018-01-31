@@ -12,7 +12,7 @@
 			{																		\
 				score_points--;														\
 				Hero.cur_special.name++;											\
-				mvwprintw(win, 12 + cur_pos * 2, 26, "%d", Hero.cur_special.name);		\
+				mvwprintw(win, 12 + cur_pos * 2, 26, "%d", Hero.cur_special.name);	\
 			}																		\
 
 
@@ -21,9 +21,23 @@
 			{																		\
 				score_points++;														\
 				Hero.cur_special.name--;											\
-				mvwprintw(win, 12 + cur_pos * 2, 27, "   ");								\
-				mvwprintw(win, 12 + cur_pos * 2, 26, "%d", Hero.cur_special.name);		\
+				mvwprintw(win, 12 + cur_pos * 2, 27, "   ");						\
+				mvwprintw(win, 12 + cur_pos * 2, 26, "%d", Hero.cur_special.name);	\
 			}																		\
+
+
+#define V_IF_IS_WALL( dir, check_x, check_y)										\
+			if(																		\
+			 	direction == dir &&													\
+				(																	\
+				cur_map->map[check_y - Map_y][check_x - Map_x] == '|' ||			\
+				cur_map->map[check_y - Map_y][check_x - Map_x] == '=' ||			\
+				cur_map->map[check_y - Map_y][check_x - Map_x] == '_' ||			\
+				cur_map->map[check_y - Map_y][check_x - Map_x] == '/' ||			\
+				cur_map->map[check_y - Map_y][check_x - Map_x] == '\\'				\
+				)																	\
+			  )																		\
+			return 1;
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ END OF DEFINES ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -31,7 +45,8 @@
 struct map_title *loc_init(FILE *cur_map_f, int side);
 struct map_title * location_changer(int where_m, struct map_title *cur_map);
 
-int player_move(int command);
+int player_move(int command, struct map_title *cur_map);
+int is_wall(int direction, struct map_title *cur_map);
 
 void map_upload(FILE *cur_map_f);
 void printer(struct map_title *cur_map);
@@ -41,6 +56,11 @@ const int Map_x = 2;
 const int Map_y = 6;
 const int Map_size_x = 120;
 const int Map_size_y = 40;
+
+const int Up = 1;
+const int Right = 2;
+const int Down = 3;
+const int Left = 4;
 
 struct special
 {
@@ -67,9 +87,9 @@ struct entity
 
 struct map_title
 {
-	char *link_up;			// 1
-	char *link_right;		// 2
-	char *link_down; 		// 3
+	char *link_up;				// 1
+	char *link_right;			// 2
+	char *link_down; 			// 3
 	char *link_left;			// 4
 	char map[Map_size_y][Map_size_x];
 };
@@ -82,7 +102,9 @@ struct entity Hero;
 //!
 //! смещение на два символа и шесть строк у карты
 //!
-//! v 0.0.3
+//! v 0.0.6
+//!
+//! Vova edition
 //!
 //!----------------------------------------------------------------------
 int main()
@@ -138,9 +160,7 @@ void hero_create(void)
 	const int pe = 4;
 	const int en = 5;
 	const int lu = 6;
-	
-	
-	
+		
 	
 	int height_stdscr, width_stdscr;
 	getmaxyx(stdscr, height_stdscr, width_stdscr);
@@ -229,26 +249,42 @@ void hero_create(void)
 //! Отвечает за перемещение персонажа
 //!
 //!--------------------------------------------------------------------------
-int player_move(int command)
+int player_move(int command, struct map_title *cur_map)
 {
-	if( ((command == 'w')||(command == KEY_UP)) && Hero.cur_y > Map_y)
+	if( ((command == 'w')||(command == KEY_UP)) && Hero.cur_y > Map_y && is_wall(Up, cur_map) == 0)
 		mvprintw(--Hero.cur_y, Hero.cur_x, "@");
-	else if( ((command == 'w')||(command == KEY_UP)) && Hero.cur_y == Map_y)
+	else if( ((command == 'w')||(command == KEY_UP)) && Hero.cur_y == Map_y && is_wall(Up, cur_map) == 0)
 		return 1; // переход на локацию выше
-	else if( ((command == 's')||(command == KEY_DOWN)) && Hero.cur_y < Map_y + Map_size_y - 1)
+	else if( ((command == 's')||(command == KEY_DOWN)) && Hero.cur_y < Map_y + Map_size_y - 1 && is_wall(Down, cur_map) == 0)
 		mvprintw(++Hero.cur_y, Hero.cur_x, "@");
-	else if( ((command == 's')||(command == KEY_DOWN)) && Hero.cur_y == Map_y + Map_size_y - 1)
+	else if( ((command == 's')||(command == KEY_DOWN)) && Hero.cur_y == Map_y + Map_size_y - 1 && is_wall(Down, cur_map) == 0)
 		return 3; // переход на локацию ниже
-	else if( ((command == 'd')||(command == KEY_RIGHT)) && Hero.cur_x < Map_x + Map_size_x - 1)
+	else if( ((command == 'd')||(command == KEY_RIGHT)) && Hero.cur_x < Map_x + Map_size_x - 1 && is_wall(Right, cur_map) == 0)
 		mvprintw(Hero.cur_y, ++Hero.cur_x, "@");
-	else if( ((command == 'd')||(command == KEY_RIGHT)) && Hero.cur_x == Map_x + Map_size_x - 1)
+	else if( ((command == 'd')||(command == KEY_RIGHT)) && Hero.cur_x == Map_x + Map_size_x - 1 && is_wall(Right, cur_map) == 0)
 		return 2; // переход на локацию правее
-	else if( ((command == 'a')||(command == KEY_LEFT)) && Hero.cur_x > Map_x)
+	else if( ((command == 'a')||(command == KEY_LEFT)) && Hero.cur_x > Map_x && is_wall(Left, cur_map) == 0)
 		mvprintw(Hero.cur_y, --Hero.cur_x, "@");
-	else if( ((command == 'a')||(command == KEY_LEFT)) && Hero.cur_x == Map_x)
+	else if( ((command == 'a')||(command == KEY_LEFT)) && Hero.cur_x == Map_x && is_wall(Left, cur_map) == 0)
 		return 4; // переход на локацию левее
 	else
 		mvprintw(Hero.cur_y, Hero.cur_x, "@"); 		// Далее писать новые ифы, так как иначе при отсутствии движения персонаж пропадает с карты
+
+	return 0;
+}
+
+
+//!
+//!
+//!
+//!
+//!
+int is_wall(int direction, struct map_title *cur_map)
+{
+	V_IF_IS_WALL(Up, Hero.cur_x, Hero.cur_y - 1)
+	V_IF_IS_WALL(Right, Hero.cur_x + 1, Hero.cur_y)
+	V_IF_IS_WALL(Down, Hero.cur_x, Hero.cur_y + 1)
+	V_IF_IS_WALL(Left, Hero.cur_x - 1, Hero.cur_y)
 
 	return 0;
 }
@@ -272,7 +308,11 @@ void printer(struct map_title *cur_map)
 
 		while(cur_x != max_x)
 		{
-			mvprintw(cur_line + Map_y, cur_x + Map_x, "%c", cur_map->map[cur_line][cur_x]);
+			if(cur_map->map[cur_line][cur_x] != '.')
+				mvprintw(cur_line + Map_y, cur_x + Map_x, "%c", cur_map->map[cur_line][cur_x]);
+			else
+				mvprintw(cur_line + Map_y, cur_x + Map_x, " ");
+
 			cur_x++;
 		}
 		
@@ -304,7 +344,7 @@ void map_upload(FILE *cur_map_f)
 		{
 			cur_sym = getch();
 			printer(cur_map);
-			where_m = player_move(cur_sym);
+			where_m = player_move(cur_sym, cur_map);
     		refresh();                   
 		}
 
@@ -314,9 +354,12 @@ void map_upload(FILE *cur_map_f)
 	}
 }
 
+
 //!---------------------------------------------------------------------
 //!
 //! Данная функция инициализирует текущую локацию
+//!
+//! side - сторона, в которую игрок вышел с предыдущей карты
 //!
 //!---------------------------------------------------------------------
 struct map_title *loc_init(FILE *cur_map_f, int side)
@@ -359,13 +402,13 @@ struct map_title *loc_init(FILE *cur_map_f, int side)
 
 		if(spawn == 0 && side != 0)
 		{
-			if(side == 1)
+			if(side == Up)
 				Hero.cur_y = Map_y + Map_size_y - 1;
-			else if(side == 2)
+			else if(side == Right)
 				Hero.cur_x = Map_x;
-			else if(side == 3)
+			else if(side == Down)
 				Hero.cur_y = Map_y;
-			else if(side == 4)
+			else if(side == Left)
 				Hero.cur_x = Map_x + Map_size_x - 1;
 		}
 		
@@ -385,29 +428,44 @@ struct map_title *loc_init(FILE *cur_map_f, int side)
 //! Данная команда отвечает за перемещение персонажа между локациями
 //!
 //!------------------------------------------------------------------------------
-
 struct map_title *location_changer(int where_m, struct map_title *cur_map)
 {
 	struct map_title *old_map = cur_map;
 
-	if(where_m == 1 && strcmp(cur_map->link_up, "null") != 0)
+	if(where_m == Up && strcmp(cur_map->link_up, "null") != 0)
 	{
 		cur_map = loc_init(fopen(cur_map->link_up,"r"), where_m);
+		free(old_map->link_up);
+		free(old_map->link_down);
+		free(old_map->link_left);
+		free(old_map->link_right);
 		free(old_map);
 	}
-	if(where_m == 2 && strcmp(cur_map->link_right, "null") != 0)
+	if(where_m == Right && strcmp(cur_map->link_right, "null") != 0)
 	{
 		cur_map = loc_init(fopen(cur_map->link_right,"r"), where_m);
+		free(old_map->link_up);
+		free(old_map->link_down);
+		free(old_map->link_left);
+		free(old_map->link_right);
 		free(old_map);
 	}
-	if(where_m == 3 && strcmp(cur_map->link_down, "null") != 0)
+	if(where_m == Down && strcmp(cur_map->link_down, "null") != 0)
 	{
 		cur_map = loc_init(fopen(cur_map->link_down,"r"), where_m);
+		free(old_map->link_up);
+		free(old_map->link_down);
+		free(old_map->link_left);
+		free(old_map->link_right);
 		free(old_map);
 	}
-	if(where_m == 4 && strcmp(cur_map->link_left, "null") != 0)
+	if(where_m == Left && strcmp(cur_map->link_left, "null") != 0)
 	{
 		cur_map = loc_init(fopen(cur_map->link_left,"r"), where_m);
+		free(old_map->link_up);
+		free(old_map->link_down);
+		free(old_map->link_left);
+		free(old_map->link_right);
 		free(old_map);
 	}
 
