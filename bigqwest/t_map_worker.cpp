@@ -55,7 +55,9 @@ int player_command(int command, struct map_title *cur_map);
 int is_wall(int direction, struct map_title *cur_map);
 
 void map_upload(FILE *cur_map_f);
-void printer(struct map_title *cur_map);
+void printer(struct map_title *cur_map, WINDOW *ramka);
+//void dialog_menu_start(FILE *cur_dial);
+void print_stats(void);
 void open_inventory(void);
 
 void hero_create(void);
@@ -92,6 +94,15 @@ struct entity
 	struct special cur_special;
 	int chsw;
 	int* inventory;
+	int shekel;
+};
+
+struct npc
+{
+	int frendly;
+	FILE *desctiption;
+	FILE *dialoge;
+	struct entity stats;
 };
 
 struct map_title
@@ -133,7 +144,7 @@ int main()
 	Hero.inventory[1] = 2002;
 	Hero.inventory[2] = 3002;
 
-	printw("For exit press 'q' \n");  
+	//printw("For exit press 'q' \n");  
 
 	map_upload(fopen("maps/map1_1.txt", "r"));
 
@@ -249,6 +260,12 @@ void hero_create(void)
 		if(sym == 'q' && score_points == 0)
 			is_end = 1;
 	}
+
+	Hero.max_hp = Hero.cur_special.st * 10 + Hero.cur_special.en * 5;
+	Hero.cur_hp = Hero.max_hp;	
+	Hero.max_mp = Hero.cur_special.in * 13 - Hero.cur_special.lu;
+	Hero.cur_mp = Hero.max_mp;
+	Hero.shekel = Hero.cur_special.lu * 7 + Hero.cur_special.ch * 2;
 	
 	del_panel(pan);
 	delwin(win);
@@ -330,8 +347,6 @@ void open_inventory (void)
 		//fclose(inv_fp);
 	}
 	
-	refresh();
-	
 	//обработка действий пользователя
 	
 	while(cur_sym != 'q')
@@ -382,18 +397,18 @@ int player_command(int command, struct map_title *cur_map)
 		open_inventory();
 		refresh();
 	}
-	else
-		mvprintw(Hero.cur_y, Hero.cur_x, "@"); 		// Далее писать новые ифы, так как иначе при отсутствии движения персонаж пропадает с карты
+	//else
+	mvprintw(Hero.cur_y, Hero.cur_x, "@"); 		// Далее писать новые ифы, так как иначе при отсутствии движения персонаж пропадает с карты
 
 	return ret;
 }
 
 
+//!-----------------------------------------------------------------------------------------
 //!
+//! Данная функция отвечает за проверку на наличие стен на пути персонажа
 //!
-//!
-//!
-//!
+//!-----------------------------------------------------------------------------------------
 int is_wall(int direction, struct map_title *cur_map)
 {
 	V_IF_IS_WALL(Up, Hero.cur_x, Hero.cur_y - 1)
@@ -410,12 +425,14 @@ int is_wall(int direction, struct map_title *cur_map)
 //! Данная функция за обновление карты
 //!
 //!------------------------------------------------------------------------------------------
-void printer(struct map_title *cur_map)
+void printer(struct map_title *cur_map, WINDOW *ramka)
 {
 	int cur_x = 0;
 	int max_x = Map_size_x;
 	int cur_line = 0;
 	int max_line = Map_size_y;
+
+	wrefresh(ramka);
 
 	while(cur_line != max_line)
 	{
@@ -433,7 +450,32 @@ void printer(struct map_title *cur_map)
 		
 		cur_line++;
 	}
+
+	print_stats();
 }
+
+//!----------------------------------------------------------------------------------------
+//!
+//! Данная функция отвечает за печать бара со статами
+//!
+//!----------------------------------------------------------------------------------------
+void print_stats(void)
+{
+	int heg = 5;
+	int len = 120;
+
+	WINDOW *stats_bar = newwin(heg, len, 0, 0);
+
+	box(stats_bar, 0, 0);
+
+	mvwprintw(stats_bar, 1, 2,"HP %d   ", Hero.cur_hp);
+	mvwprintw(stats_bar, 1, 10,"/ %d   ", Hero.max_hp);
+	mvwprintw(stats_bar, 2, 2,"MP %d   ", Hero.cur_mp);
+	mvwprintw(stats_bar, 2, 10,"/ %d   ", Hero.max_mp);
+	mvwprintw(stats_bar, 3, 2, "shekel = %d         ", Hero.shekel);
+
+	wrefresh(stats_bar);
+}	
 
 
 //!----------------------------------------------------------------------------------------
@@ -451,14 +493,18 @@ void map_upload(FILE *cur_map_f)
 {
 	struct map_title *cur_map = loc_init(cur_map_f, 0);
 	int where_m = 0;
-	int cur_sym = 0;
+	int cur_sym = 0;	
+	WINDOW *ramka = newwin(Map_size_y + 2, Map_size_x + 2, Map_y - 1, Map_x - 1);
+
+	box(ramka, 0, 0);
 
 	while(cur_sym != 'q')
 	{
 		while(cur_sym != 'q' && where_m == 0)
 		{
 			cur_sym = getch();
-			printer(cur_map);
+			printer(cur_map, ramka);
+			refresh();
 			where_m = player_command(cur_sym, cur_map);
     		refresh();                   
 		}
