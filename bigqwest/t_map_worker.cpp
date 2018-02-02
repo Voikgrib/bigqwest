@@ -45,18 +45,29 @@
 			  )																		\
 			return 1;
 
+
+#define V_SKIP( what )																\
+			while(cur_dial[cur_pos] != what)										\
+				cur_pos++;															\
+			cur_pos++;																\
+
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ END OF DEFINES ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 struct map_title *loc_init(FILE *cur_map_f, int side);
 struct map_title * location_changer(int where_m, struct map_title *cur_map);
 
+struct dial_tree_br *dial_upload(char *cur_dial, struct dial_tree_br *par, long int cur_pos);
+
+char *npc_finder(struct npc *cur_npc);
+struct npc *npc_upload(char *name);
+
 int player_command(int command, struct map_title *cur_map);
 int is_wall(int direction, struct map_title *cur_map);
 
 void map_upload(FILE *cur_map_f);
 void printer(struct map_title *cur_map, WINDOW *ramka);
-//void dialog_menu_start(FILE *cur_dial);
+void dialog_menu_start(struct npc *cur_npc);
 void print_stats(void);
 void open_inventory(void);
 
@@ -97,14 +108,6 @@ struct entity
 	int shekel;
 };
 
-struct npc
-{
-	int frendly;
-	FILE *desctiption;
-	FILE *dialoge;
-	struct entity stats;
-};
-
 struct map_title
 {
 	char *link_up;				// 1
@@ -112,6 +115,24 @@ struct map_title
 	char *link_down; 			// 3
 	char *link_left;			// 4
 	char map[Map_size_y][Map_size_x];
+	struct npc *cur_npc;
+};
+
+struct dial_tree_br
+{
+	struct dial_tree_br *parent;
+	char *npc_phrase;
+	int is_end;
+	struct dial_tree_br *br;
+	char **phrase;
+};
+
+struct npc
+{
+	int frendly;
+	char *name;
+	struct dial_tree_br *dial_start;
+	struct entity stats;
 };
 
 struct entity Hero;
@@ -125,7 +146,7 @@ struct entity Hero;
 //! v 0.0.6
 //!
 //! Vova edition
-//!
+//!									НЕОБХОДИМО ЗАПИЛИТЬ ПОИСК МОБОВ НА КАРТЕ 
 //!----------------------------------------------------------------------
 int main()
 {
@@ -272,6 +293,171 @@ void hero_create(void)
 	clear();
 
 	Hero.inventory = (int*) calloc(60, sizeof(int) );
+}
+
+
+//! 			struct npc
+//!				{
+//!				int frendly;
+//!				char *name;
+//!				struct dial_tree_br *dial_start;
+//!				struct entity stats;
+//!				};
+//!
+//!
+//!			NT
+//!
+struct npc *npc_upload(char *name)
+{
+	int fr = 0;
+
+	struct npc *cur_npc = (struct npc *) calloc(1, sizeof(struct npc));
+
+	char *main_adr = (char *) calloc(100, sizeof(char));
+	char *dial_adr = (char *) calloc(100, sizeof(char));
+	char *face_adr = (char *) calloc(100, sizeof(char));
+	cur_npc->name = (char *) calloc(100, sizeof(char));
+
+	sprintf(main_adr, "%s/main.txt", name);
+	sprintf(dial_adr, "%s/dialoge.txt", name);
+	sprintf(face_adr, "%s/face.txt", name);
+
+	FILE *main_f = fopen(main_adr, "r");
+	
+	fscanf(main_f, "%[^\n]", cur_npc->name);	fgetc(main_f);
+
+	fscanf(main_f, "%d", &fr);					fgetc(main_f);
+
+	if(fr == 'f')
+		cur_npc->frendly = 1;
+	else
+		cur_npc->frendly = 0;
+	
+	fscanf(main_f, "%d", &cur_npc->stats.cur_special.st);	fgetc(main_f);
+	fscanf(main_f, "%d", &cur_npc->stats.cur_special.pe);	fgetc(main_f);
+	fscanf(main_f, "%d", &cur_npc->stats.cur_special.en);	fgetc(main_f);
+	fscanf(main_f, "%d", &cur_npc->stats.cur_special.ch);	fgetc(main_f);
+	fscanf(main_f, "%d", &cur_npc->stats.cur_special.in);	fgetc(main_f);
+	fscanf(main_f, "%d", &cur_npc->stats.cur_special.ag);	fgetc(main_f);
+	fscanf(main_f, "%d", &cur_npc->stats.cur_special.lu);	fgetc(main_f);
+
+	fclose(main_f);
+
+	FILE *dial_f = fopen(dial_adr, "r");
+
+	fseek(dial_f, 0, SEEK_END);
+	long int size = ftell(dial_f);
+
+	char *file_info = (char *) calloc(size, sizeof(char));
+
+	cur_npc->dial_start = dial_upload(file_info, NULL, 0);
+
+	fclose(dial_f);
+
+	//далее подгрузка лица персонажа в окне диалога
+
+	return cur_npc;
+}
+
+
+//!
+//!
+//!
+//!
+//!
+void dialog_menu_start(struct npc *cur_npc)
+{
+	
+
+}
+
+
+//!
+//!
+//!
+/*
+struct dial_tree_br
+{
+	struct dial_tree_br *parent;
+	char *npc_phrase;
+	int is_end;
+	struct dial_tree_br *br;
+	char **phrase;
+};
+
+*/
+//! 			NT
+//!
+struct dial_tree_br *dial_upload(char *cur_dial, struct dial_tree_br *par, long int cur_pos)
+{
+	const int dial_max = 4;
+	const int phrase_max = 200;
+
+	int cur_dial_n = 0;
+	int cur_phr = 0;
+	int i = 0;
+
+	struct dial_tree_br *cur_br = (struct dial_tree_br *)calloc(1, sizeof(struct dial_tree_br));
+
+	cur_br->br = (struct dial_tree_br *)calloc(dial_max, sizeof(struct dial_tree_br));
+	cur_br->npc_phrase = (char *)calloc(phrase_max, sizeof(char));
+
+	while(cur_dial_n != dial_max)
+	{	
+		cur_br->phrase[cur_dial_n] = (char *)calloc(phrase_max, sizeof(char));
+		cur_dial++;
+	}
+
+	cur_br->parent = par;
+	cur_br->is_end = 0;
+
+	cur_dial = 0;
+
+	while(cur_dial[cur_pos] != '#' && cur_dial[cur_pos] != 'B')									
+		cur_pos++;												
+
+	if(cur_dial[cur_pos] == 'B')
+	{
+		while(cur_dial_n != dial_max)
+		{
+			free(cur_br->phrase[cur_dial_n]);			
+			cur_dial_n++;
+		}
+		free(cur_br->br);
+		free(cur_br->npc_phrase);
+		cur_br->is_end = 1;
+		return cur_br;
+	}
+
+	cur_pos++;
+
+	while(cur_dial[cur_pos] != '#')
+		cur_br->npc_phrase[i++] = cur_dial[cur_pos++];
+
+	while(cur_dial_n != dial_max && cur_dial[cur_pos] != EOF)
+	{
+		i = 0;
+
+		V_SKIP('(')
+				/// тут будут условия появления фразы
+		V_SKIP(')')
+ 		
+		V_SKIP('"')
+
+		while(cur_dial[cur_pos] != '"')
+			cur_br->phrase[cur_dial_n][i++] = cur_dial[cur_pos++];
+		cur_pos++;
+
+		V_SKIP('{')
+
+		cur_br->br = dial_upload(cur_dial, cur_br, cur_pos);
+
+		V_SKIP('}')
+
+		cur_dial_n++;
+	}
+
+	return cur_br;
 }
 
 
@@ -432,6 +618,7 @@ void printer(struct map_title *cur_map, WINDOW *ramka)
 	int cur_line = 0;
 	int max_line = Map_size_y;
 
+	box(ramka, 0, 0);
 	wrefresh(ramka);
 
 	while(cur_line != max_line)
@@ -491,12 +678,17 @@ void print_stats(void)
 //!----------------------------------------------------------------------------------------
 void map_upload(FILE *cur_map_f)
 {
+	const int max_mob = 5;
+	int mob = 0;
+
 	struct map_title *cur_map = loc_init(cur_map_f, 0);
 	int where_m = 0;
 	int cur_sym = 0;	
 	WINDOW *ramka = newwin(Map_size_y + 2, Map_size_x + 2, Map_y - 1, Map_x - 1);
 
-	box(ramka, 0, 0);
+	printer(cur_map, ramka);
+	mvprintw(Hero.cur_y, Hero.cur_x, "@"); 
+	refresh();	
 
 	while(cur_sym != 'q')
 	{
@@ -506,10 +698,13 @@ void map_upload(FILE *cur_map_f)
 			printer(cur_map, ramka);
 			refresh();
 			where_m = player_command(cur_sym, cur_map);
-    		refresh();                   
+    		refresh();  
 		}
 
 		cur_map = location_changer(where_m, cur_map);
+		printer(cur_map, ramka);
+		mvprintw(Hero.cur_y, Hero.cur_x, "@"); 
+		refresh();
 
 		where_m = 0;
 	}
