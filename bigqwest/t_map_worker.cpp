@@ -54,13 +54,13 @@
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ END OF DEFINES ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-struct map_title *loc_init(FILE *cur_map_f, int side);
-struct map_title * location_changer(int where_m, struct map_title *cur_map);
+struct map_title *loc_init(FILE *cur_map_f, int side, struct npc **cur_npc);
+struct map_title *location_changer(int where_m, struct map_title *cur_map, struct npc **cur_npc);
 
 struct dial_tree_br *dial_upload(char *cur_dial, struct dial_tree_br *par, long int cur_pos);
 
-char *npc_finder(struct npc *cur_npc);
-struct npc *npc_upload(char *name);
+struct npc *npc_finder(struct npc *cur_npc, int find_x, int find_y);
+struct npc *npc_upload(char name);
 
 int player_command(int command, struct map_title *cur_map);
 int is_wall(int direction, struct map_title *cur_map);
@@ -69,6 +69,7 @@ void map_upload(FILE *cur_map_f);
 void printer(struct map_title *cur_map, WINDOW *ramka);
 void dialog_menu_start(struct npc *cur_npc);
 void print_stats(void);
+void print_npc(struct npc **cur_npc);
 void open_inventory(void);
 
 void hero_create(void);
@@ -82,6 +83,8 @@ const int Up = 1;
 const int Right = 2;
 const int Down = 3;
 const int Left = 4;
+
+const int V_max_npc = 5;
 
 struct special
 {
@@ -306,27 +309,39 @@ void hero_create(void)
 //!
 //!
 //!			NT
+//!-----------------------------------------------------------------------------------------
 //!
-struct npc *npc_upload(char *name)
+//! Данная функция инициализирует нпс (если такой существует)
+//!
+//!-----------------------------------------------------------------------------------------
+struct npc *npc_upload(char name)
 {
-	int fr = 0;
+	char fr = 0;
 
-	struct npc *cur_npc = (struct npc *) calloc(1, sizeof(struct npc));
-
-	char *main_adr = (char *) calloc(100, sizeof(char));
-	char *dial_adr = (char *) calloc(100, sizeof(char));
-	char *face_adr = (char *) calloc(100, sizeof(char));
-	cur_npc->name = (char *) calloc(100, sizeof(char));
-
-	sprintf(main_adr, "%s/main.txt", name);
-	sprintf(dial_adr, "%s/dialoge.txt", name);
-	sprintf(face_adr, "%s/face.txt", name);
+	char *main_adr = (char*) calloc(100, sizeof(char));
+	char *dial_adr = (char*) calloc(100, sizeof(char));
+	char *face_adr = (char*) calloc(100, sizeof(char));
+	
+	sprintf(main_adr, "npc/nonquest/%c/main.txt", name);
+	sprintf(dial_adr, "npc/nonquest/%c/dialoge.txt", name);
+	sprintf(face_adr, "npc/nonquest/%c/face.txt", name);
 
 	FILE *main_f = fopen(main_adr, "r");
+
+	if(main_f == NULL)
+	{
+		free(main_adr);
+		free(dial_adr);
+		free(face_adr);
+		return NULL;
+	}
+
+	struct npc *cur_npc = (struct npc *) calloc(1, sizeof(struct npc));
+	cur_npc->name = (char *) calloc(100, sizeof(char));
 	
 	fscanf(main_f, "%[^\n]", cur_npc->name);	fgetc(main_f);
 
-	fscanf(main_f, "%d", &fr);					fgetc(main_f);
+	fscanf(main_f, "%c", &fr);					fgetc(main_f);
 
 	if(fr == 'f')
 		cur_npc->frendly = 1;
@@ -355,6 +370,7 @@ struct npc *npc_upload(char *name)
 	fclose(dial_f);
 
 	//далее подгрузка лица персонажа в окне диалога
+	mvprintw(30,31,"$$");///// TEST
 
 	return cur_npc;
 }
@@ -372,9 +388,47 @@ void dialog_menu_start(struct npc *cur_npc)
 }
 
 
+//!------------------------------------------------------------------------
 //!
+//! Данная функция провнряет был ли инициализирован данный нпс, если был то задаёт его координаты
 //!
+//!------------------------------------------------------------------------
+struct npc *npc_finder(char cur_sym, int find_x, int find_y)
+{
+	struct npc *cur_npc = npc_upload(cur_sym);
+
+	if(cur_npc == NULL)
+		return NULL;
+
+	cur_npc->stats.cur_x = find_x;
+	cur_npc->stats.cur_y = find_y;
+
+	return cur_npc;
+}
+
+
+//!-------------------------------------------------------------------------------------------
 //!
+//! Данная функция печатает нпс
+//!
+//!-------------------------------------------------------------------------------------------
+void print_npc(struct npc **cur_npc)
+{
+	int cur_num = 0;
+	//mvprintw(30,30,"!"); //////// TEST
+
+	while(cur_num != V_max_npc && cur_npc[cur_num] != NULL && cur_npc[cur_num]->name != NULL)
+	{
+		mvprintw(cur_npc[cur_num]->stats.cur_y, cur_npc[cur_num]->stats.cur_x, "%c", cur_npc[cur_num]->name[0]);
+		cur_num++;
+	}
+}
+
+//!-------------------------------------------------------------------------------------------
+//!
+//! Данная функция инициализирует диалоги
+//!
+//!-------------------------------------------------------------------------------------------
 /*
 struct dial_tree_br
 {
@@ -386,7 +440,7 @@ struct dial_tree_br
 };
 
 */
-//! 			NT
+//! 			T
 //!
 struct dial_tree_br *dial_upload(char *cur_dial, struct dial_tree_br *par, long int cur_pos)
 {
@@ -627,7 +681,7 @@ void printer(struct map_title *cur_map, WINDOW *ramka)
 
 		while(cur_x != max_x)
 		{
-			if(cur_map->map[cur_line][cur_x] != '.')
+			if(cur_map->map[cur_line][cur_x] != '.' && (cur_map->map[cur_line][cur_x] < 'a' || cur_map->map[cur_line][cur_x] > 'z'))
 				mvprintw(cur_line + Map_y, cur_x + Map_x, "%c", cur_map->map[cur_line][cur_x]);
 			else
 				mvprintw(cur_line + Map_y, cur_x + Map_x, " ");
@@ -678,10 +732,17 @@ void print_stats(void)
 //!----------------------------------------------------------------------------------------
 void map_upload(FILE *cur_map_f)
 {
-	const int max_mob = 5;
-	int mob = 0;
+	int npc_num = 0;
+	
+	struct npc **cur_loc_npc = (struct npc **) calloc (V_max_npc, sizeof(struct npc*));
 
-	struct map_title *cur_map = loc_init(cur_map_f, 0);
+	while(npc_num != V_max_npc)
+	{
+		cur_loc_npc[npc_num] = (struct npc *) calloc (V_max_npc, sizeof(struct npc));
+		npc_num++;
+	}
+
+	struct map_title *cur_map = loc_init(cur_map_f, 0, cur_loc_npc);
 	int where_m = 0;
 	int cur_sym = 0;	
 	WINDOW *ramka = newwin(Map_size_y + 2, Map_size_x + 2, Map_y - 1, Map_x - 1);
@@ -696,12 +757,14 @@ void map_upload(FILE *cur_map_f)
 		{
 			cur_sym = getch();
 			printer(cur_map, ramka);
-			refresh();
+			print_npc(cur_loc_npc);
+			//refresh();
 			where_m = player_command(cur_sym, cur_map);
     		refresh();  
 		}
 
-		cur_map = location_changer(where_m, cur_map);
+		cur_map = location_changer(where_m, cur_map, cur_loc_npc);
+		
 		printer(cur_map, ramka);
 		mvprintw(Hero.cur_y, Hero.cur_x, "@"); 
 		refresh();
@@ -718,7 +781,7 @@ void map_upload(FILE *cur_map_f)
 //! side - сторона, в которую игрок вышел с предыдущей карты
 //!
 //!---------------------------------------------------------------------
-struct map_title *loc_init(FILE *cur_map_f, int side)
+struct map_title *loc_init(FILE *cur_map_f, int side, struct npc **cur_npc)
 {
 	struct map_title *cur_map = (struct map_title*) calloc(1, sizeof(struct map_title));
 
@@ -727,6 +790,7 @@ struct map_title *loc_init(FILE *cur_map_f, int side)
 	int cur_x = 0;
 	int spawn = 0;
 	int max_x = Map_size_x;
+	int npc_num = 0;
 
 	cur_map->link_up = (char*) calloc(100, sizeof(char));
 	cur_map->link_right = (char*) calloc(100, sizeof(char));
@@ -751,6 +815,13 @@ struct map_title *loc_init(FILE *cur_map_f, int side)
 				Hero.cur_x = cur_x + Map_x;
 				Hero.cur_y = cur_line + Map_y;
 				spawn = 1;
+			}
+			else if('a' <= cur_map->map[cur_line][cur_x] && cur_map->map[cur_line][cur_x] <= 'z')
+			{
+				cur_npc[npc_num] = npc_finder(cur_map->map[cur_line][cur_x], cur_x, cur_line);
+
+				if(cur_npc[npc_num] != NULL)
+					npc_num++;
 			}
 
 			cur_x++;
@@ -784,13 +855,18 @@ struct map_title *loc_init(FILE *cur_map_f, int side)
 //! Данная команда отвечает за перемещение персонажа между локациями
 //!
 //!------------------------------------------------------------------------------
-struct map_title *location_changer(int where_m, struct map_title *cur_map)
+struct map_title *location_changer(int where_m, struct map_title *cur_map, struct npc **cur_npc)
 {
 	struct map_title *old_map = cur_map;
 
+	int npc_num = 0;
+
+	while(npc_num != V_max_npc)
+		cur_npc[npc_num++] = NULL;
+
 	if(where_m == Up && strcmp(cur_map->link_up, "null") != 0)
 	{
-		cur_map = loc_init(fopen(cur_map->link_up,"r"), where_m);
+		cur_map = loc_init(fopen(cur_map->link_up,"r"), where_m, cur_npc);
 		free(old_map->link_up);
 		free(old_map->link_down);
 		free(old_map->link_left);
@@ -799,7 +875,7 @@ struct map_title *location_changer(int where_m, struct map_title *cur_map)
 	}
 	if(where_m == Right && strcmp(cur_map->link_right, "null") != 0)
 	{
-		cur_map = loc_init(fopen(cur_map->link_right,"r"), where_m);
+		cur_map = loc_init(fopen(cur_map->link_right,"r"), where_m, cur_npc);
 		free(old_map->link_up);
 		free(old_map->link_down);
 		free(old_map->link_left);
@@ -808,7 +884,7 @@ struct map_title *location_changer(int where_m, struct map_title *cur_map)
 	}
 	if(where_m == Down && strcmp(cur_map->link_down, "null") != 0)
 	{
-		cur_map = loc_init(fopen(cur_map->link_down,"r"), where_m);
+		cur_map = loc_init(fopen(cur_map->link_down,"r"), where_m, cur_npc);
 		free(old_map->link_up);
 		free(old_map->link_down);
 		free(old_map->link_left);
@@ -817,7 +893,7 @@ struct map_title *location_changer(int where_m, struct map_title *cur_map)
 	}
 	if(where_m == Left && strcmp(cur_map->link_left, "null") != 0)
 	{
-		cur_map = loc_init(fopen(cur_map->link_left,"r"), where_m);
+		cur_map = loc_init(fopen(cur_map->link_left,"r"), where_m, cur_npc);
 		free(old_map->link_up);
 		free(old_map->link_down);
 		free(old_map->link_left);
